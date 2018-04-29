@@ -11,6 +11,7 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.web.WebView;
 import javafx.stage.Stage;
 
+import javax.swing.*;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -24,11 +25,48 @@ import java.util.regex.Pattern;
 public class ClientGUI extends Application {
     public static BufferedReader reader;
     static WebView webview = new WebView();
+    private static TextField skipToField;
+    private static Label durationLbl;
+    private static boolean isFirst = true;
     Socket socket;
-    private TextField uRLfield;
-    private int duration;
+    private static TextField uRLfield;
+    private static int duration;
+    private static int currentTime;
+    static Label timeDisplay;
+    private static boolean isPaused;
 
     static void updateURL(String url) {
+
+        isPaused = !url.contains("autoplay=1");
+
+        getDuration(url);
+        Platform.runLater(() -> durationLbl.setText(String.valueOf(duration)));
+
+        if(isFirst) {
+            Runnable runnable = () -> {
+                Timer timer = new Timer(1000, e -> {
+                    if (!isPaused) {
+                        currentTime++;
+                        Platform.runLater(() -> timeDisplay.setText(String.valueOf(currentTime)));
+                    }
+                });
+                timer.start();
+            };
+            new Thread(runnable).start();
+            isFirst = false;
+        }
+
+        if(url.contains("start=")) {
+            Pattern pattern = Pattern.compile("start=[0-9]+");
+
+            Matcher matcher = pattern.matcher(url);
+
+            if (matcher.find()) {
+                Platform.runLater(() -> timeDisplay.setText(matcher.group().replace("start=", "").replace("\"", "")));
+                currentTime = Integer.parseInt(matcher.group().replace("start=", "").replace("\"", ""));
+            }
+
+        }
         Platform.runLater(() -> webview.getEngine().load(url));
 
     }
@@ -48,17 +86,20 @@ public class ClientGUI extends Application {
 
         Button play = new Button("|> ||");
         play.setOnAction(event -> {
+
             writer.write("PAUSE\n");
             writer.flush();
         });
 
-        Label durationLbl = new Label();
+        durationLbl = new Label();
         Label slashlbl = new Label("/");
-        TextField skipToField = new TextField();
+
+        skipToField = new TextField();
         skipToField.setMaxWidth(50);
         skipToField.setOnAction(event -> {
             writer.write("SKIP_TO:" + skipToField.getText() + "\n");
             writer.flush();
+
         });
 
         Button fullScreenBtn = new Button("Full");
@@ -68,8 +109,10 @@ public class ClientGUI extends Application {
             else
                 primaryStage.setFullScreen(true);
         });
+
+        timeDisplay = new Label("0");
         box.setSpacing(5);
-        box.getChildren().addAll(play, skipToField, slashlbl, durationLbl, fullScreenBtn);
+        box.getChildren().addAll(play, timeDisplay,skipToField, slashlbl, durationLbl, fullScreenBtn);
 
         StackPane stackPane = new StackPane(webview);
 
@@ -78,7 +121,20 @@ public class ClientGUI extends Application {
         pane.setTop(uRLfield);
         pane.setBottom(box);
 
-        uRLfield.setOnKeyPressed(event -> {
+        controlByKeyboard(writer, durationLbl, uRLfield);
+
+        controlByKeyboard(writer, durationLbl, skipToField);
+
+
+        Scene scene = new Scene(pane, 400, 300);
+        primaryStage.setScene(scene);
+        primaryStage.show();
+
+        new Thread(new Handleclient()).start();
+    }
+
+    private void controlByKeyboard(PrintWriter writer, Label durationLbl, TextField skipToField) {
+        skipToField.setOnKeyPressed(event -> {
             KeyCode code = event.getCode();
 
             if (code.getCode() == 32) {
@@ -92,9 +148,9 @@ public class ClientGUI extends Application {
 
                 writer.write("START_VIDEO: " + url + "\n");
                 writer.flush();
-                getDuration();
-                durationLbl.setText(String.valueOf(duration));
+
             }
+
             if (code.equals(KeyCode.LEFT)) {
                 writer.write("ADD15\n");
                 writer.flush();
@@ -105,18 +161,11 @@ public class ClientGUI extends Application {
             }
 
         });
-
-
-        Scene scene = new Scene(pane, 400, 300);
-        primaryStage.setScene(scene);
-        primaryStage.show();
-
-        new Thread(new Handleclient()).start();
     }
 
-    void getDuration() {
+    static void getDuration(String urlString) {
         try {
-            URL url = new URL(uRLfield.getText().replace("embed/", "watch?v="));
+            URL url = new URL(urlString.replace("embed/", "watch?v="));
 
             BufferedReader br = new BufferedReader(new InputStreamReader(url.openStream()));
 
