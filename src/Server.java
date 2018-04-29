@@ -57,6 +57,9 @@ public class Server {
                             else if (receivedString.startsWith("BACK15"))
                                 skipTo(timeInSecs + 15);
 
+                            else if (receivedString.startsWith("SKIP_TO"))
+                                skipTo(Integer.parseInt(receivedString.replace("SKIP_TO:", "")));
+
                             else if (receivedString.equals("PAUSE"))
                                 unpauseOrPauseVideo();
 

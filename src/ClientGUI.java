@@ -1,9 +1,12 @@
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.scene.Scene;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.web.WebView;
 import javafx.stage.Stage;
@@ -41,11 +44,39 @@ public class ClientGUI extends Application {
 
         uRLfield = new TextField();
 
+        HBox box = new HBox();
+
+        Button play = new Button("|> ||");
+        play.setOnAction(event -> {
+            writer.write("PAUSE\n");
+            writer.flush();
+        });
+
+        Label durationLbl = new Label();
+        Label slashlbl = new Label("/");
+        TextField skipToField = new TextField();
+        skipToField.setMaxWidth(50);
+        skipToField.setOnAction(event -> {
+            writer.write("SKIP_TO:" + skipToField.getText() + "\n");
+            writer.flush();
+        });
+
+        Button fullScreenBtn = new Button("Full");
+        fullScreenBtn.setOnAction(event -> {
+            if (primaryStage.isFullScreen())
+                primaryStage.setFullScreen(false);
+            else
+                primaryStage.setFullScreen(true);
+        });
+        box.setSpacing(5);
+        box.getChildren().addAll(play, skipToField, slashlbl, durationLbl, fullScreenBtn);
+
         StackPane stackPane = new StackPane(webview);
 
         BorderPane pane = new BorderPane();
         pane.setCenter(stackPane);
         pane.setTop(uRLfield);
+        pane.setBottom(box);
 
         uRLfield.setOnKeyPressed(event -> {
             KeyCode code = event.getCode();
@@ -62,18 +93,18 @@ public class ClientGUI extends Application {
                 writer.write("START_VIDEO: " + url + "\n");
                 writer.flush();
                 getDuration();
+                durationLbl.setText(String.valueOf(duration));
             }
-            if(code.equals(KeyCode.LEFT)){
+            if (code.equals(KeyCode.LEFT)) {
                 writer.write("ADD15\n");
                 writer.flush();
             }
-            if(code.equals(KeyCode.RIGHT)){
+            if (code.equals(KeyCode.RIGHT)) {
                 writer.write("BACK15\n");
                 writer.flush();
             }
 
         });
-
 
 
         Scene scene = new Scene(pane, 400, 300);
@@ -83,7 +114,7 @@ public class ClientGUI extends Application {
         new Thread(new Handleclient()).start();
     }
 
-    void getDuration(){
+    void getDuration() {
         try {
             URL url = new URL(uRLfield.getText().replace("embed/", "watch?v="));
 
@@ -91,14 +122,14 @@ public class ClientGUI extends Application {
 
             String line;
 
-            while((line = br.readLine()) != null){
+            while ((line = br.readLine()) != null) {
 
-                if(line.contains("\"length_seconds\":")){
+                if (line.contains("\"length_seconds\":")) {
                     Pattern pattern = Pattern.compile("\"length_seconds\":\"[0-9]+\"");
 
                     Matcher matcher = pattern.matcher(line);
 
-                    if(matcher.find()){
+                    if (matcher.find()) {
                         line = matcher.group().replace("\"length_seconds\":", "").replace("\"", "");
                         duration = Integer.parseInt(line);
                     }
