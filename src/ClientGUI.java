@@ -3,10 +3,12 @@ import javafx.application.Platform;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollBar;
 import javafx.scene.control.TextField;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
 import javafx.scene.web.WebView;
 import javafx.stage.Stage;
@@ -23,6 +25,7 @@ import java.util.regex.Pattern;
 
 
 public class ClientGUI extends Application {
+
     public static BufferedReader reader;
     static WebView webview = new WebView();
     private static TextField skipToField;
@@ -34,6 +37,7 @@ public class ClientGUI extends Application {
     private static int currentTime;
     static Label timeDisplay;
     private static boolean isPaused;
+    private static ScrollBar scrollBar;
 
     static void updateURL(String url) {
 
@@ -42,12 +46,18 @@ public class ClientGUI extends Application {
         getDuration(url);
         Platform.runLater(() -> durationLbl.setText(String.valueOf(duration)));
 
+
         if(isFirst) {
             Runnable runnable = () -> {
                 Timer timer = new Timer(1000, e -> {
                     if (!isPaused) {
                         currentTime++;
-                        Platform.runLater(() -> timeDisplay.setText(String.valueOf(currentTime)));
+                        Platform.runLater(() -> {
+                            timeDisplay.setText(String.valueOf(currentTime));
+                            scrollBar.setValue(scrollBar.getValue() + 1);
+                        });
+
+
                     }
                 });
                 timer.start();
@@ -55,6 +65,8 @@ public class ClientGUI extends Application {
             new Thread(runnable).start();
             isFirst = false;
         }
+        scrollBar.setMax(duration);
+
 
         if(url.contains("start=")) {
             Pattern pattern = Pattern.compile("start=[0-9]+");
@@ -62,11 +74,15 @@ public class ClientGUI extends Application {
             Matcher matcher = pattern.matcher(url);
 
             if (matcher.find()) {
-                Platform.runLater(() -> timeDisplay.setText(matcher.group().replace("start=", "").replace("\"", "")));
-                currentTime = Integer.parseInt(matcher.group().replace("start=", "").replace("\"", ""));
+                String s = matcher.group().replace("start=", "").replace("\"", "");
+                Platform.runLater(() -> timeDisplay.setText(s));
+                currentTime = Integer.parseInt(s);
+                scrollBar.setValue(Double.parseDouble(s));
             }
 
         }
+        else
+            scrollBar.setValue(0);
         Platform.runLater(() -> webview.getEngine().load(url));
 
     }
@@ -81,6 +97,17 @@ public class ClientGUI extends Application {
         webview.setMouseTransparent(true);
 
         uRLfield = new TextField();
+
+        scrollBar = new ScrollBar();
+        scrollBar.setMin(0);
+        scrollBar.setValue(0);
+
+        scrollBar.setOnMouseClicked(event -> {
+            writer.write("SKIP_TO: " + Math.round(scrollBar.getValue()) + "\n");
+            writer.flush();
+        });
+
+        StackPane scrollPane = new StackPane(scrollBar);
 
         HBox box = new HBox();
 
@@ -97,7 +124,7 @@ public class ClientGUI extends Application {
         skipToField = new TextField();
         skipToField.setMaxWidth(50);
         skipToField.setOnAction(event -> {
-            writer.write("SKIP_TO:" + skipToField.getText() + "\n");
+            writer.write("SKIP_TO: " + skipToField.getText() + "\n");
             writer.flush();
 
         });
@@ -112,7 +139,8 @@ public class ClientGUI extends Application {
 
         timeDisplay = new Label("0");
         box.setSpacing(5);
-        box.getChildren().addAll(play, timeDisplay,skipToField, slashlbl, durationLbl, fullScreenBtn);
+        HBox.setHgrow(scrollPane, Priority.ALWAYS);
+        box.getChildren().addAll(play, timeDisplay, scrollPane, skipToField, slashlbl, durationLbl, fullScreenBtn);
 
         StackPane stackPane = new StackPane(webview);
 
