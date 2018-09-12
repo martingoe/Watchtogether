@@ -35,8 +35,7 @@ public class ClientGUI extends Application {
     private static TextField skipToField;
     //Displays the duration of the video
     private static Label durationLbl;
-    //Makes sure some things only happen once
-    private static boolean isFirst = true;
+
 
     private static TextField urlField;
     private static int duration;
@@ -100,7 +99,7 @@ public class ClientGUI extends Application {
 
     }
 
-    static void getDuration(String urlString) {
+    private static void getDuration(String urlString) {
         try {
             URL url = new URL(urlString.replace("embed/", "watch?v="));
 
