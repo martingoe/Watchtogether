@@ -1,9 +1,11 @@
 import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.beans.value.ObservableValue;
+import javafx.concurrent.Worker;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
-import javafx.scene.control.ScrollBar;
+import javafx.scene.control.Slider;
 import javafx.scene.control.TextField;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.BorderPane;
@@ -26,49 +28,40 @@ import java.util.regex.Pattern;
 
 public class ClientGUI extends Application {
 
-    public static BufferedReader reader;
-    static WebView webview = new WebView();
+    static BufferedReader reader;
+    //This displays the embedded video
+    private static WebView webView = new WebView();
+    //Allows the user to give the program a specific second to skip to
     private static TextField skipToField;
+    //Displays the duration of the video
     private static Label durationLbl;
+    //Makes sure some things only happen once
     private static boolean isFirst = true;
-    Socket socket;
-    private static TextField uRLfield;
+
+    private static TextField urlField;
     private static int duration;
     private static int currentTime;
-    static Label timeDisplay;
+    private static Label timeDisplay;
     private static boolean isPaused;
-    private static ScrollBar scrollBar;
+    private static Slider scrollBar;
+    private static StackPane stackpane;
+    private static BorderPane pane;
+    private static Timer timer;
 
-    static void updateURL(String url) {
+    //Run a new video by the embedded YouTube url
+    static void runURL(String url) {
 
+        //Finds out weather the video is paused, using YouTube's "autoplay" attribute
         isPaused = !url.contains("autoplay=1");
 
+        //Get the duration of the video and display it on the durationLbl
         getDuration(url);
         Platform.runLater(() -> durationLbl.setText(String.valueOf(duration)));
 
 
-        if(isFirst) {
-            Runnable runnable = () -> {
-                Timer timer = new Timer(1000, e -> {
-                    if (!isPaused) {
-                        currentTime++;
-                        Platform.runLater(() -> {
-                            timeDisplay.setText(String.valueOf(currentTime));
-                            scrollBar.setValue(scrollBar.getValue() + 1);
-                        });
 
 
-                    }
-                });
-                timer.start();
-            };
-            new Thread(runnable).start();
-            isFirst = false;
-        }
-        scrollBar.setMax(duration);
-
-
-        if(url.contains("start=")) {
+        if (url.contains("start=")) {
             Pattern pattern = Pattern.compile("start=[0-9]+");
 
             Matcher matcher = pattern.matcher(url);
@@ -80,25 +73,82 @@ public class ClientGUI extends Application {
                 scrollBar.setValue(Double.parseDouble(s));
             }
 
-        }
-        else
+        } else
             scrollBar.setValue(0);
-        Platform.runLater(() -> webview.getEngine().load(url));
+        scrollBar.setMax(duration);
 
+
+        Platform.runLater(() -> {
+            webView.getEngine().loadContent("");
+            webView = new WebView();
+            webView.getEngine().getLoadWorker().stateProperty().addListener((ObservableValue<? extends Worker.State> observable, Worker.State oldValue, Worker.State newValue) -> {
+                if (newValue == Worker.State.SUCCEEDED) {
+                    if (!isPaused) {
+                            timer.start();
+                    }
+                    else{
+                        timer.stop();
+                    }
+                }
+            });
+            stackpane = new StackPane(webView);
+            pane.setCenter(stackpane);
+        });
+
+        Platform.runLater(() -> webView.getEngine().load(url));
+
+
+    }
+
+    static void getDuration(String urlString) {
+        try {
+            URL url = new URL(urlString.replace("embed/", "watch?v="));
+
+            BufferedReader br = new BufferedReader(new InputStreamReader(url.openStream()));
+
+            String line;
+
+            while ((line = br.readLine()) != null) {
+
+                if (line.contains("\"length_seconds\":")) {
+                    Pattern pattern = Pattern.compile("\"length_seconds\":\"[0-9]+\"");
+
+                    Matcher matcher = pattern.matcher(line);
+
+                    if (matcher.find()) {
+                        line = matcher.group().replace("\"length_seconds\":", "").replace("\"", "");
+                        duration = Integer.parseInt(line);
+                    }
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     @Override
     public void start(Stage primaryStage) throws Exception {
-        socket = new Socket("localhost", 5555);
+        Socket socket = new Socket("localhost", 5555);
+
+        timer = new Timer(1000, e -> {
+            currentTime++;
+
+            Platform.runLater(() -> {
+                timeDisplay.setText(String.valueOf(currentTime));
+                scrollBar.setValue(scrollBar.getValue() + 1);
+            });
+
+
+        });
 
         PrintWriter writer = new PrintWriter(socket.getOutputStream());
         reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
-        webview.setMouseTransparent(true);
+        webView.setMouseTransparent(true);
 
-        uRLfield = new TextField();
+        urlField = new TextField();
 
-        scrollBar = new ScrollBar();
+        scrollBar = new Slider();
         scrollBar.setMin(0);
         scrollBar.setValue(0);
 
@@ -114,7 +164,7 @@ public class ClientGUI extends Application {
         Button play = new Button("|> ||");
         play.setOnAction(event -> {
 
-            writer.write("PAUSE\n");
+            writer.write("PAUSE: " + currentTime + "\n");
             writer.flush();
         });
 
@@ -142,14 +192,14 @@ public class ClientGUI extends Application {
         HBox.setHgrow(scrollPane, Priority.ALWAYS);
         box.getChildren().addAll(play, timeDisplay, scrollPane, skipToField, slashlbl, durationLbl, fullScreenBtn);
 
-        StackPane stackPane = new StackPane(webview);
+        stackpane = new StackPane(webView);
 
-        BorderPane pane = new BorderPane();
-        pane.setCenter(stackPane);
-        pane.setTop(uRLfield);
+        pane = new BorderPane();
+        pane.setCenter(stackpane);
+        pane.setTop(urlField);
         pane.setBottom(box);
 
-        controlByKeyboard(writer, durationLbl, uRLfield);
+        controlByKeyboard(writer, durationLbl, urlField);
 
         controlByKeyboard(writer, durationLbl, skipToField);
 
@@ -172,7 +222,7 @@ public class ClientGUI extends Application {
             }
 
             if (code.equals(KeyCode.ENTER)) {
-                String url = uRLfield.getText().replace("watch?v=", "embed/") + "?controls=0&autoplay=1&disablekb=1&modestbranding=1&showinfo=0&rel=0";
+                String url = urlField.getText().replace("watch?v=", "embed/") + "?controls=0&autoplay=1&disablekb=1&modestbranding=1&showinfo=0&rel=0";
 
                 writer.write("START_VIDEO: " + url + "\n");
                 writer.flush();
@@ -189,32 +239,6 @@ public class ClientGUI extends Application {
             }
 
         });
-    }
-
-    static void getDuration(String urlString) {
-        try {
-            URL url = new URL(urlString.replace("embed/", "watch?v="));
-
-            BufferedReader br = new BufferedReader(new InputStreamReader(url.openStream()));
-
-            String line;
-
-            while ((line = br.readLine()) != null) {
-
-                if (line.contains("\"length_seconds\":")) {
-                    Pattern pattern = Pattern.compile("\"length_seconds\":\"[0-9]+\"");
-
-                    Matcher matcher = pattern.matcher(line);
-
-                    if (matcher.find()) {
-                        line = matcher.group().replace("\"length_seconds\":", "").replace("\"", "");
-                        duration = Integer.parseInt(line);
-                    }
-                }
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
     }
 
 

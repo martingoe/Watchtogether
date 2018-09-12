@@ -8,7 +8,7 @@ public class Handleclient extends Thread {
                 if (ClientGUI.reader.ready()) {
 
                     String url = ClientGUI.reader.readLine();
-                    ClientGUI.updateURL(url);
+                    ClientGUI.runURL(url);
                 }
             } catch (IOException e) {
                 e.printStackTrace();

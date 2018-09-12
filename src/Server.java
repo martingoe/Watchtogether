@@ -16,7 +16,6 @@ public class Server {
     static boolean isPaused = false;
     static int timeInSecs = 0;
     static String url = "";
-    boolean isMuted = false;
 
     public static void main(String[] args) {
 
@@ -38,7 +37,7 @@ public class Server {
         Runnable runnable = () -> {
             while (true) {
 
-                Socket[] sockets = clients.toArray(new Socket[clients.size()]);
+                Socket[] sockets = clients.toArray(new Socket[0]);
                 for (Socket socket : sockets)
 
                     try {
@@ -60,8 +59,8 @@ public class Server {
                             else if (receivedString.startsWith("SKIP_TO"))
                                 skipTo(Integer.parseInt(receivedString.replace("SKIP_TO: ", "")));
 
-                            else if (receivedString.equals("PAUSE"))
-                                unpauseOrPauseVideo();
+                            else if (receivedString.startsWith("PAUSE"))
+                                unpauseOrPauseVideo(receivedString.replace("PAUSE: ", ""));
 
                             sendURL();
                         }
@@ -89,22 +88,12 @@ public class Server {
     }
 
     static void startVideo(String text) {
-        timeInSecs = 0;
-        url = text.replace("START_VIDEO: ", "");
-
-
-        Timer timerTask = new Timer(1000, e -> {
-            if (!isPaused) {
-                timeInSecs++;
-                System.out.println("Secs + 1");
-            }
-        });
-        timerTask.start();
-
+        url = text.replace("START_VIDEO: ", "") + "&start=0";
     }
 
 
-    static void unpauseOrPauseVideo() {
+    static void unpauseOrPauseVideo(String replace) {
+        timeInSecs = Integer.parseInt(replace);
         System.out.println("PAUSE");
         if (!isPaused)
             pause();
@@ -124,12 +113,14 @@ public class Server {
     }
 
     private static void pause() {
-        if (url.contains("&start=")) {
+        Pattern p = Pattern.compile("start=[0-9]+");
 
+        Matcher m = p.matcher(url);
+        url = m.replaceAll("start=" + timeInSecs);
+        if(url.contains("autoplay=1"))
             url = url.replace("autoplay=1", "autoplay=0");
-
-        } else
-            url = url.replace("autoplay=1", "autoplay=0") + "&start=" + timeInSecs;
+        else
+            url += "&autoplay=0";
         isPaused = true;
     }
 
