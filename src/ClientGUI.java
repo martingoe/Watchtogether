@@ -28,38 +28,50 @@ import java.util.regex.Pattern;
 
 public class ClientGUI extends Application {
 
+    //Used to receive data from the server
     static BufferedReader reader;
+
     //This displays the embedded video
     private static WebView webView = new WebView();
+
     //Allows the user to give the program a specific second to skip to
     private static TextField skipToField;
+
     //Displays the duration of the video
     private static Label durationLbl;
-
-
-    private static TextField urlField;
+    //The duration of the video
     private static int duration;
+
+    //allows the user to play a new video via entering a url
+    private static TextField urlField;
+
+    //The current time in seconds
     private static int currentTime;
+    //Displays the current time in seconds
     private static Label timeDisplay;
-    private static boolean isPaused;
-    private static Slider scrollBar;
+
+    //Shows the time on a slider
+    private static Slider durationSlider;
+
+    //The way to display everything. It is private to reset the Webview
     private static StackPane stackpane;
     private static BorderPane pane;
+
+    //The timer allowing the time to move on
     private static Timer timer;
+
 
     //Run a new video by the embedded YouTube url
     static void runURL(String url) {
 
         //Finds out weather the video is paused, using YouTube's "autoplay" attribute
-        isPaused = !url.contains("autoplay=1");
+        boolean isPaused = !url.contains("autoplay=1");
 
         //Get the duration of the video and display it on the durationLbl
         getDuration(url);
         Platform.runLater(() -> durationLbl.setText(String.valueOf(duration)));
 
-
-
-
+        //Sets the to 0 if there is no specific start time, but if there is one, set it to that
         if (url.contains("start=")) {
             Pattern pattern = Pattern.compile("start=[0-9]+");
 
@@ -69,19 +81,26 @@ public class ClientGUI extends Application {
                 String s = matcher.group().replace("start=", "").replace("\"", "");
                 Platform.runLater(() -> timeDisplay.setText(s));
                 currentTime = Integer.parseInt(s);
-                scrollBar.setValue(Double.parseDouble(s));
+                durationSlider.setValue(Double.parseDouble(s));
             }
 
         } else
-            scrollBar.setValue(0);
-        scrollBar.setMax(duration);
+            durationSlider.setValue(0);
+
+        //Set the maximum value of the durationSlider to the duration
+        durationSlider.setMax(duration);
 
 
+        //This uses JavaFX, so you have to use Platform.runLater()
         Platform.runLater(() -> {
+            //Resets the Webview
             webView.getEngine().loadContent("");
             webView = new WebView();
+
+            //Only start the timer to change the current time when the video is finished loading
             webView.getEngine().getLoadWorker().stateProperty().addListener((ObservableValue<? extends Worker.State> observable, Worker.State oldValue, Worker.State newValue) -> {
                 if (newValue == Worker.State.SUCCEEDED) {
+                    //Only start the timer when the video is not paused
                     if (!isPaused) {
                             timer.start();
                     }
@@ -90,10 +109,12 @@ public class ClientGUI extends Application {
                     }
                 }
             });
+            //Add the Webview to the screen
             stackpane = new StackPane(webView);
             pane.setCenter(stackpane);
         });
 
+        //Load the video using the Webview
         Platform.runLater(() -> webView.getEngine().load(url));
 
 
@@ -134,7 +155,7 @@ public class ClientGUI extends Application {
 
             Platform.runLater(() -> {
                 timeDisplay.setText(String.valueOf(currentTime));
-                scrollBar.setValue(scrollBar.getValue() + 1);
+                durationSlider.setValue(durationSlider.getValue() + 1);
             });
 
 
@@ -147,16 +168,16 @@ public class ClientGUI extends Application {
 
         urlField = new TextField();
 
-        scrollBar = new Slider();
-        scrollBar.setMin(0);
-        scrollBar.setValue(0);
+        durationSlider = new Slider();
+        durationSlider.setMin(0);
+        durationSlider.setValue(0);
 
-        scrollBar.setOnMouseClicked(event -> {
-            writer.write("SKIP_TO: " + Math.round(scrollBar.getValue()) + "\n");
+        durationSlider.setOnMouseClicked(event -> {
+            writer.write("SKIP_TO: " + Math.round(durationSlider.getValue()) + "\n");
             writer.flush();
         });
 
-        StackPane scrollPane = new StackPane(scrollBar);
+        StackPane scrollPane = new StackPane(durationSlider);
 
         HBox box = new HBox();
 
@@ -198,9 +219,9 @@ public class ClientGUI extends Application {
         pane.setTop(urlField);
         pane.setBottom(box);
 
-        controlByKeyboard(writer, durationLbl, urlField);
+        controlByKeyboard(writer, urlField);
 
-        controlByKeyboard(writer, durationLbl, skipToField);
+        controlByKeyboard(writer, skipToField);
 
 
         Scene scene = new Scene(pane, 400, 300);
@@ -210,14 +231,13 @@ public class ClientGUI extends Application {
         new Thread(new Handleclient()).start();
     }
 
-    private void controlByKeyboard(PrintWriter writer, Label durationLbl, TextField skipToField) {
+    private void controlByKeyboard(PrintWriter writer, TextField skipToField) {
         skipToField.setOnKeyPressed(event -> {
             KeyCode code = event.getCode();
 
             if (code.getCode() == 32) {
                 writer.write("PAUSE\n");
                 writer.flush();
-                System.out.println("pause");
             }
 
             if (code.equals(KeyCode.ENTER)) {
