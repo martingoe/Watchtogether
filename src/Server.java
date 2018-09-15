@@ -14,10 +14,10 @@ public class Server {
     static ArrayList<Socket> clients = new ArrayList<>();
     //The actual server
     static ServerSocket serverSocket;
-    //Saves, if the video is paused
-    private static boolean isPaused = false;
     //The current url
     static String url = "";
+    //Saves, if the video is paused
+    private static boolean isPaused = false;
 
     public static void main(String[] args) {
         {
@@ -37,27 +37,33 @@ public class Server {
 
     private static void receiveContent() {
         Runnable runnable = () -> {
+            //Always run this
             while (true) {
 
+                //Run this for every connected sockets
                 Socket[] sockets = clients.toArray(new Socket[0]);
                 for (Socket socket : sockets)
 
                     try {
+                        //Find out if the socket sent any data
                         BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-
                         if (reader.ready()) {
+                            //If there is data to be received, get it
                             String receivedString = reader.readLine();
-                            System.out.println("Received: " + receivedString);
 
+                            //Start a new video if the socket tells the server to
                             if (receivedString.startsWith("START_VIDEO: "))
-                                startVideo(receivedString);
+                                startVideo(receivedString.replace("START_VIDEO: ", ""));
 
-                            else if (receivedString.startsWith("SKIP_TO"))
+                                //Skip to a specific time if the socket tells the server to
+                            else if (receivedString.startsWith("SKIP_TO: "))
                                 skipTo(Integer.parseInt(receivedString.replace("SKIP_TO: ", "")));
 
-                            else if (receivedString.startsWith("PAUSE"))
+                                //Pause or unpause the video if the socket wants the server to
+                            else if (receivedString.startsWith("PAUSE: "))
                                 unpauseOrPauseVideo(receivedString.replace("PAUSE: ", ""));
 
+                            //Send the new URL to everyone
                             sendURL();
                         }
                     } catch (IOException e) {
@@ -66,73 +72,74 @@ public class Server {
             }
         };
 
-
+        //Run the new Thread
         runnable.run();
     }
 
     private static void skipTo(int secs) {
-
-        if (url.contains("&start=")) {
-            Pattern p = Pattern.compile("&start=[0-9]+");
-
-            Matcher m = p.matcher(url);
-            url = m.replaceAll("&start=" + secs);
-        } else {
-            url = url + "&start=" + secs;
-        }
+        startAttribute(secs);
     }
 
+    //Add the start attribute to the URL
     private static void startVideo(String text) {
-        url = text.replace("START_VIDEO: ", "") + "&start=0";
+        url = text + "&start=0";
     }
 
 
     private static void unpauseOrPauseVideo(String replace) {
+        //Find the current time
         int timeInSecs = Integer.parseInt(replace);
         System.out.println("PAUSE");
+        //Pause the video if it is not yet paused and the other way around
         if (!isPaused)
             pause(timeInSecs);
         else
-            unpause(timeInSecs);
+            unPause(timeInSecs);
 
 
     }
 
-    private static void unpause(int timeInSecs) {
-        Pattern p = Pattern.compile("&start=[0-9]+");
+    private static void unPause(int timeInSecs) {
+        startAttribute(timeInSecs);
 
-        Matcher m = p.matcher(url);
-        url = m.replaceAll("&start=" + timeInSecs);
+        //Change the autoplay attribute to 1 and change isPaused to false
         url = url.replace("autoplay=0", "autoplay=1");
         isPaused = false;
     }
 
     private static void pause(int timeInSecs) {
-        Pattern p = Pattern.compile("start=[0-9]+");
+        startAttribute(timeInSecs);
 
-        Matcher m = p.matcher(url);
-        url = m.replaceAll("start=" + timeInSecs);
-        if(url.contains("autoplay=1"))
+        //Change the autoplay attribute to 1 and change isPaused to false
+        if (url.contains("autoplay=1"))
             url = url.replace("autoplay=1", "autoplay=0");
         else
             url += "&autoplay=0";
+
         isPaused = true;
     }
 
-    private static void sendURL() {
-        clients.forEach(socket1 -> {
+    private static void startAttribute(int timeInSecs) {
+        //Change the start attribute to the new one
+        Pattern p = Pattern.compile("start=[0-9]+");
+        Matcher m = p.matcher(url);
+        url = m.replaceAll("start=" + timeInSecs);
+    }
 
+    //Sends the video URL to every Socket
+    private static void sendURL() {
+        //Do this for every connected Socket
+        Socket[] sockets = clients.toArray(new Socket[0]);
+        for (Socket socket : sockets) {
             try {
-                PrintWriter writer = new PrintWriter(socket1.getOutputStream());
+                //Send the current URL to the Socket
+                PrintWriter writer = new PrintWriter(socket.getOutputStream());
                 writer.write(url + "\n");
                 writer.flush();
-
-                System.out.println("Sent " + url + " back.");
-
             } catch (IOException e) {
                 e.printStackTrace();
             }
-        });
+        }
     }
 
 
