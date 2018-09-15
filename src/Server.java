@@ -10,25 +10,28 @@ import java.util.regex.Pattern;
 
 public class Server {
 
+    //Stores all of the connected Sockets
     static ArrayList<Socket> clients = new ArrayList<>();
+    //The actual server
     static ServerSocket serverSocket;
+    //Saves, if the video is paused
     private static boolean isPaused = false;
-    private static int timeInSecs = 0;
-    private static String url = "";
+    //The current url
+    static String url = "";
 
     public static void main(String[] args) {
-
         {
             try {
+                //Setup the new Server
                 serverSocket = new ServerSocket(5555);
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
-
+        //handles all the incoming Sockets
         new Thread(new HandleServer()).start();
+        //Handles the incoming requests
         receiveContent();
-
     }
 
 
@@ -48,12 +51,6 @@ public class Server {
 
                             if (receivedString.startsWith("START_VIDEO: "))
                                 startVideo(receivedString);
-
-                            else if (receivedString.startsWith("ADD15"))
-                                skipTo(timeInSecs - 15);
-
-                            else if (receivedString.startsWith("BACK15"))
-                                skipTo(timeInSecs + 15);
 
                             else if (receivedString.startsWith("SKIP_TO"))
                                 skipTo(Integer.parseInt(receivedString.replace("SKIP_TO: ", "")));
@@ -75,14 +72,13 @@ public class Server {
 
     private static void skipTo(int secs) {
 
-        timeInSecs = secs;
         if (url.contains("&start=")) {
             Pattern p = Pattern.compile("&start=[0-9]+");
 
             Matcher m = p.matcher(url);
-            url = m.replaceAll("&start=" + timeInSecs);
+            url = m.replaceAll("&start=" + secs);
         } else {
-            url = url + "&start=" + timeInSecs;
+            url = url + "&start=" + secs;
         }
     }
 
@@ -92,17 +88,17 @@ public class Server {
 
 
     private static void unpauseOrPauseVideo(String replace) {
-        timeInSecs = Integer.parseInt(replace);
+        int timeInSecs = Integer.parseInt(replace);
         System.out.println("PAUSE");
         if (!isPaused)
-            pause();
+            pause(timeInSecs);
         else
-            unpause();
+            unpause(timeInSecs);
 
 
     }
 
-    private static void unpause() {
+    private static void unpause(int timeInSecs) {
         Pattern p = Pattern.compile("&start=[0-9]+");
 
         Matcher m = p.matcher(url);
@@ -111,7 +107,7 @@ public class Server {
         isPaused = false;
     }
 
-    private static void pause() {
+    private static void pause(int timeInSecs) {
         Pattern p = Pattern.compile("start=[0-9]+");
 
         Matcher m = p.matcher(url);
