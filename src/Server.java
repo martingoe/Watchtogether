@@ -1,4 +1,3 @@
-import javax.swing.*;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -13,9 +12,9 @@ public class Server {
 
     static ArrayList<Socket> clients = new ArrayList<>();
     static ServerSocket serverSocket;
-    static boolean isPaused = false;
-    static int timeInSecs = 0;
-    static String url = "";
+    private static boolean isPaused = false;
+    private static int timeInSecs = 0;
+    private static String url = "";
 
     public static void main(String[] args) {
 
@@ -33,7 +32,7 @@ public class Server {
     }
 
 
-    static void receiveContent() {
+    private static void receiveContent() {
         Runnable runnable = () -> {
             while (true) {
 
@@ -87,12 +86,12 @@ public class Server {
         }
     }
 
-    static void startVideo(String text) {
+    private static void startVideo(String text) {
         url = text.replace("START_VIDEO: ", "") + "&start=0";
     }
 
 
-    static void unpauseOrPauseVideo(String replace) {
+    private static void unpauseOrPauseVideo(String replace) {
         timeInSecs = Integer.parseInt(replace);
         System.out.println("PAUSE");
         if (!isPaused)
